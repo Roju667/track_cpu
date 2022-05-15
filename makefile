@@ -31,4 +31,4 @@ clean:
 	rm *.o *.exe *.txt
 
 val:
-	valgrind --leak-check-full ./track
+	valgrind --leak-check=full ./track

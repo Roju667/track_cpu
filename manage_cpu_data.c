@@ -49,38 +49,55 @@ static bool is_this_cpu_data(const char *cpu_name)
 uint32_t parse_text_to_struct(char *text_from_file, cpu_t *cpus)
 {
 
-  char *cpu_name = NULL;
-  char *cpu_param_txt = NULL;
-  uint32_t *cpu_val_ptr = NULL;
-  uint8_t no_cpus = 0;
-  uint32_t find_first_cpu = 0;
+  uint32_t no_cpus = 0;
+  uint32_t args;
+  char *text_line = text_from_file;
 
-  while (text_from_file[find_first_cpu] != 'c')
+  if (text_line == NULL)
     {
-      find_first_cpu++;
+      return 0;
     }
 
-  cpu_name = strtok(&text_from_file[find_first_cpu], " ");
-  for (no_cpus = 0; no_cpus < MAX_NO_CPUS; no_cpus++)
+  text_line++;
+
+  do
     {
-      if (false == is_this_cpu_data(cpu_name))
+
+      args = sscanf(text_line, "%s %u %u %u %u %u %u %u %u %u %u",
+                    cpus[no_cpus].name, &cpus[no_cpus].usage.user,
+                    &cpus[no_cpus].usage.nice, &cpus[no_cpus].usage.system,
+                    &cpus[no_cpus].usage.idle, &cpus[no_cpus].usage.iowait,
+                    &cpus[no_cpus].usage.irq, &cpus[no_cpus].usage.softirq,
+                    &cpus[no_cpus].usage.steal, &cpus[no_cpus].usage.guest,
+                    &cpus[no_cpus].usage.guest_nice);
+      (void)args;
+      // fprintf(stderr, "args written %d\n", args);
+      // fprintf(stderr, "%s %u %u %u %u %u %u %u %u %u %u \n",
+      // cpus[no_cpus].name,
+      //         cpus[no_cpus].usage.user, cpus[no_cpus].usage.nice,
+      //         cpus[no_cpus].usage.system, cpus[no_cpus].usage.idle,
+      //         cpus[no_cpus].usage.iowait, cpus[no_cpus].usage.irq,
+      //         cpus[no_cpus].usage.softirq, cpus[no_cpus].usage.steal,
+      //         cpus[no_cpus].usage.guest, cpus[no_cpus].usage.guest_nice);
+
+      if (false == is_this_cpu_data(cpus[no_cpus].name))
         {
           break;
         }
-      strcpy(cpus[no_cpus].name, cpu_name);
 
-      cpu_val_ptr = (uint32_t *)&(cpus[no_cpus].usage);
-      for (uint8_t j = 0; j < NO_CPU_PARAMS - 1; j++)
+      if (0 == no_cpus)
         {
-          cpu_param_txt = strtok(NULL, " ");
-          *cpu_val_ptr = atoi(cpu_param_txt);
-          cpu_val_ptr++;
+          text_line = strtok(text_line, "\n");
+          text_line = strtok(NULL, "\n");
+        }
+      else
+        {
+          text_line = strtok(NULL, "\n");
         }
 
-      strtok(NULL, "\n");
-      cpu_name = strtok(NULL, " ");
+      no_cpus++;
     }
-
+  while (1);
   return no_cpus;
 }
 
