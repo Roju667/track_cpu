@@ -1,0 +1,5 @@
+﻿---
+BreakBeforeBraces: GNU
+SortIncludes: false
+Language: Cpp
+...
