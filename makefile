@@ -16,12 +16,15 @@ endif
 
 all:track
 
-track: track.o
-	$(CC) -o track track.o $(CORE_FLAGS)
+track: track.o manage_cpu_data.o
+	$(CC) -o track track.o manage_cpu_data.o $(CORE_FLAGS)
 	@echo "compilation with $(CC), edit CC variable to compile with clang"
 
-track.o: track.c
+track.o: track.c manage_cpu_data.o
 	$(CC) -c track.c $(CORE_FLAGS)
+
+manage_cpu_data.o: manage_cpu_data.c manage_cpu_data.h
+	$(CC) -c manage_cpu_data.c $(CORE_FLAGS)
 
 
 clean:
