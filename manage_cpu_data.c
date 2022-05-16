@@ -7,6 +7,8 @@
 
 #include "manage_cpu_data.h"
 
+#define REQUIRED_ARGS NO_CPU_PARAMS + 1
+
 void get_raw_data(char *destination)
 {
   FILE *fp = fopen("/proc/stat", "r");
@@ -33,44 +35,50 @@ void get_raw_data(char *destination)
 
 static bool is_this_cpu_data(const char *cpu_name)
 {
-  bool ret_val = false;
+  bool is_cpu = false;
 
   if (NULL != cpu_name)
     {
       if (0 == strncmp("cpu", cpu_name, 3))
         {
-          ret_val = true;
+          is_cpu = true;
         }
     }
 
-  return ret_val;
+  return is_cpu;
 }
 
 uint32_t parse_text_to_struct(char *text_from_file, cpu_t *cpus)
 {
 
   uint32_t no_cpus = 0;
-  uint32_t args;
-  char *text_line = text_from_file;
+  uint32_t args_scanned = 0;
+  char *text_ptr = text_from_file;
 
-  if (text_line == NULL)
+  if (text_ptr == NULL)
     {
+      /* logger msg - NULL pointer passed to parsing */
       return 0;
     }
 
-  text_line++;
+  text_ptr++;
 
   do
     {
 
-      args = sscanf(text_line, "%s %u %u %u %u %u %u %u %u %u %u",
-                    cpus[no_cpus].name, &cpus[no_cpus].usage.user,
-                    &cpus[no_cpus].usage.nice, &cpus[no_cpus].usage.system,
-                    &cpus[no_cpus].usage.idle, &cpus[no_cpus].usage.iowait,
-                    &cpus[no_cpus].usage.irq, &cpus[no_cpus].usage.softirq,
-                    &cpus[no_cpus].usage.steal, &cpus[no_cpus].usage.guest,
-                    &cpus[no_cpus].usage.guest_nice);
-      (void)args;
+      args_scanned = sscanf(
+          text_ptr, "%s %u %u %u %u %u %u %u %u %u %u", cpus[no_cpus].name,
+          &cpus[no_cpus].usage.user, &cpus[no_cpus].usage.nice,
+          &cpus[no_cpus].usage.system, &cpus[no_cpus].usage.idle,
+          &cpus[no_cpus].usage.iowait, &cpus[no_cpus].usage.irq,
+          &cpus[no_cpus].usage.softirq, &cpus[no_cpus].usage.steal,
+          &cpus[no_cpus].usage.guest, &cpus[no_cpus].usage.guest_nice);
+
+      if ((true == is_this_cpu_data(cpus[no_cpus].name)) &
+          (args_scanned != REQUIRED_ARGS))
+        {
+          /* logger msg - not enough cpu parameters */
+        }
       // fprintf(stderr, "args written %d\n", args);
       // fprintf(stderr, "%s %u %u %u %u %u %u %u %u %u %u \n",
       // cpus[no_cpus].name,
@@ -87,12 +95,12 @@ uint32_t parse_text_to_struct(char *text_from_file, cpu_t *cpus)
 
       if (0 == no_cpus)
         {
-          text_line = strtok(text_line, "\n");
-          text_line = strtok(NULL, "\n");
+          text_ptr = strtok(text_ptr, "\n"); /* ? */
+          text_ptr = strtok(NULL, "\n");
         }
       else
         {
-          text_line = strtok(NULL, "\n");
+          text_ptr = strtok(NULL, "\n");
         }
 
       no_cpus++;

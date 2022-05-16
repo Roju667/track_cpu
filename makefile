@@ -20,11 +20,11 @@ track: track.o manage_cpu_data.o
 	$(CC) -o track track.o manage_cpu_data.o $(CORE_FLAGS)
 	@echo "compilation with $(CC), edit CC variable to compile with clang"
 
-track.o: track.c manage_cpu_data.o
+track.o: track.c manage_cpu_data.h
 	$(CC) -c track.c $(CORE_FLAGS)
 
 manage_cpu_data.o: manage_cpu_data.c manage_cpu_data.h
-	$(CC) -c manage_cpu_data.c $(CORE_FLAGS)
+	$(CC) -c manage_cpu_data.c manage_cpu_data.h $(CORE_FLAGS)
 
 
 clean:
