@@ -13,6 +13,8 @@
 #define UNUSED(x) (void)(x)
 #define NO_THREADS 5U
 #define MAX_LOG_TEXT 32U
+#define WATCHDOG_TIME 2U
+#define PRINTER_TIME 1U
 
 typedef void *(*thread_function)(void *);
 
@@ -29,7 +31,10 @@ static void *analyzer_task(void *argument);
 static void *printer_task(void *argument);
 static void *watchdog_task(void *argument);
 static void *logger_task(void *argument);
+
 static void write_new_log_msg(const char *new_log);
+static void post_watchdog_sem(sem_t *sem);
+static void trywait_watchdog_sem(sem_t *sem);
 
 static pthread_mutex_t mmut_access_ring_buff = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t mmut_access_print_msg = PTHREAD_MUTEX_INITIALIZER;
@@ -37,11 +42,14 @@ static pthread_mutex_t mmut_access_log_msg = PTHREAD_MUTEX_INITIALIZER;
 
 static sem_t ssem_log_data = {0};
 static sem_t ssem_raw_data_posted = {0};
+static sem_t ssem_wd_reader = {0};
+static sem_t ssem_wd_analyzer = {0};
+static sem_t ssem_wd_printer = {0};
 
+/* Shared data */
 static ringbuffer_t ringbuffer = {0};
 static char log_msg[MAX_LOG_TEXT] = {0};
 static char print_msg[MAX_PRINT_TEXT] = {0};
-
 static volatile uint8_t watchdog_timeout = 0;
 
 int main()
@@ -55,6 +63,9 @@ int main()
 
   sem_init(&ssem_log_data, 0, 0);
   sem_init(&ssem_raw_data_posted, 0, 0);
+  sem_init(&ssem_wd_reader, 0, 1);
+  sem_init(&ssem_wd_analyzer, 0, 1);
+  sem_init(&ssem_wd_printer, 0, 1);
 
   for (uint8_t i = 0; i < NO_THREADS; i++)
     {
@@ -111,6 +122,7 @@ static void *reader_task(void *argument)
       sem_post(&ssem_raw_data_posted);
       pthread_mutex_unlock(&mmut_access_ring_buff);
 
+      post_watchdog_sem(&ssem_wd_reader);
       /* 100000 us = 0.1s = 100 jiffies */
       usleep(500000);
 
@@ -144,6 +156,8 @@ static void *analyzer_task(void *argument)
       prepare_print(cpus, raw_stats, print_msg);
       pthread_mutex_unlock(&mmut_access_print_msg);
 
+      post_watchdog_sem(&ssem_wd_analyzer);
+
       if (watchdog_timeout)
         {
           break;
@@ -165,8 +179,9 @@ static void *printer_task(void *argument)
       system("clear");
       fprintf(stderr, "%s", print_msg);
       pthread_mutex_unlock(&mmut_access_print_msg);
+      post_watchdog_sem(&ssem_wd_printer);
 
-      sleep(1);
+      sleep(PRINTER_TIME);
 
       if (watchdog_timeout)
         {
@@ -185,8 +200,10 @@ static void *watchdog_task(void *argument)
 
   while (1)
     {
-
-      sleep(2);
+      trywait_watchdog_sem(&ssem_wd_reader);
+      trywait_watchdog_sem(&ssem_wd_analyzer);
+      trywait_watchdog_sem(&ssem_wd_printer);
+      sleep(WATCHDOG_TIME);
       if (watchdog_timeout)
         {
           break;
@@ -240,6 +257,38 @@ static void write_new_log_msg(const char *new_log)
 
   sem_post(&ssem_log_data);
   pthread_mutex_unlock(&mmut_access_log_msg);
+
+  return;
+}
+
+/* Binary semaphore post */
+static void post_watchdog_sem(sem_t *sem)
+{
+  int32_t sem_value = 0;
+  char msg[64] = {0};
+  if (0 != sem_getvalue(sem, &sem_value))
+    {
+      write_new_log_msg("Couldnt get semaphore value \n");
+    }
+
+  if (0 == sem_value)
+    {
+      sem_post(sem);
+    }
+
+  sprintf(msg, "semaphore value : %d \n", sem_value);
+  write_new_log_msg(msg);
+
+  return;
+}
+
+static void trywait_watchdog_sem(sem_t *sem)
+{
+  if (-1 == sem_trywait(sem))
+    {
+      write_new_log_msg("Watchdog timeout \n");
+      watchdog_timeout = 1;
+    }
 
   return;
 }

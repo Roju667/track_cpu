@@ -1,5 +1,50 @@
-Task created
-Task created
-Task created
-Task created
-Task created
+semaphore value : 1 
+semaphore value : 1 
+semaphore value : 1 
+semaphore value : 1 
+semaphore value : 1 
+semaphore value : 1 
+semaphore value : 1 
+semaphore value : 0 
+semaphore value : 0 
+semaphore value : 0 
+semaphore value : 1 
+semaphore value : 1 
+semaphore value : 1 
+semaphore value : 1 
+semaphore value : 1 
+semaphore value : 0 
+semaphore value : 0 
+semaphore value : 0 
+semaphore value : 1 
+semaphore value : 1 
+semaphore value : 1 
+semaphore value : 1 
+semaphore value : 1 
+semaphore value : 1 
+semaphore value : 1 
+semaphore value : 0 
+semaphore value : 0 
+semaphore value : 0 
+semaphore value : 1 
+semaphore value : 1 
+semaphore value : 1 
+semaphore value : 1 
+semaphore value : 1 
+semaphore value : 1 
+semaphore value : 1 
+semaphore value : 0 
+semaphore value : 0 
+semaphore value : 0 
+semaphore value : 1 
+semaphore value : 1 
+semaphore value : 1 
+semaphore value : 1 
+semaphore value : 1 
+semaphore value : 1 
+semaphore value : 1 
+semaphore value : 0 
+semaphore value : 0 
+semaphore value : 0 
+semaphore value : 1 
+semaphore value : 1 
