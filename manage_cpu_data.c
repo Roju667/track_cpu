@@ -142,3 +142,25 @@ uint32_t calculate_cpu_usage(const cpu_t *cpu, const cpu_t *prev_cpu)
 
   return cpu_precetage;
 }
+
+void prepare_print(cpu_t *cpus, char *raw_stats, char *data_to_print)
+{
+  cpu_t prev_cpus[MAX_NO_CPUS] = {0};
+  uint32_t no_cpus_used = 0;
+  uint32_t cpu_usage[MAX_NO_CPUS] = {0};
+  uint32_t lenght = 0;
+
+  memcpy(prev_cpus, cpus, sizeof(cpu_t) * MAX_NO_CPUS);
+  memset(data_to_print, 0, MAX_PRINT_TEXT);
+
+  no_cpus_used = parse_text_to_struct(raw_stats, cpus);
+  for (uint8_t i = 0; i < no_cpus_used; i++)
+    {
+      cpu_usage[i] = calculate_cpu_usage(&cpus[i], &prev_cpus[i]);
+      sprintf(data_to_print + lenght, "%s: %d %% \n", cpus[i].name,
+              cpu_usage[i]);
+      lenght = strlen(data_to_print);
+    }
+
+  return;
+}

@@ -26,9 +26,11 @@ typedef struct
 #define MAX_MSG_LENGHT 2048U
 #define MAX_NO_CPUS 16U
 #define NO_CPU_PARAMS 10U
+#define MAX_PRINT_TEXT 256U
 
 uint32_t get_raw_data(char *destination);
 uint32_t parse_text_to_struct(char *text_from_file, cpu_t *cpus);
 uint32_t calculate_cpu_usage(const cpu_t *cpu, const cpu_t *prev_cpu);
+void prepare_print(cpu_t *cpus, char *raw_stats, char *data_to_print);
 
 #endif /* INC_MANAGE_CPU_H_*/
