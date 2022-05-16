@@ -9,7 +9,7 @@
 
 #define REQUIRED_ARGS NO_CPU_PARAMS + 1
 
-void get_raw_data(char *destination)
+uint32_t get_raw_data(char *destination)
 {
   FILE *fp = fopen("/proc/stat", "r");
 
@@ -30,7 +30,7 @@ void get_raw_data(char *destination)
     }
 
   fclose(fp);
-  return;
+  return len;
 }
 
 static bool is_this_cpu_data(const char *cpu_name)

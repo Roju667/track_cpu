@@ -8,6 +8,7 @@
 #include "semaphore.h"
 
 #include "manage_cpu_data.h"
+#include "ringbuffer.h"
 
 #define UNUSED(x) (void)(x)
 #define NO_THREADS 5U
@@ -18,11 +19,11 @@ static void *printer_task(void *argument);
 static void *watchdog_task(void *argument);
 static void *logger_task(void *argument);
 
-pthread_mutex_t mmut_access_raw_data = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mmut_access_ring_buff = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mmut_access_cpus_stats = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mmut_3 = PTHREAD_MUTEX_INITIALIZER;
 
-sem_t ssem_analzyer_ready, ssem_reader_ready;
+sem_t ssem_analzyer_ready, ssem_raw_data_posted;
 
 typedef void *(*thread_function)(void *);
 
@@ -34,7 +35,7 @@ typedef struct
   void *arg;
 } my_thread_t;
 
-char raw_stats[MAX_MSG_LENGHT] = {0};
+ringbuffer_t ringbuffer = {0};
 cpu_t cpus[MAX_NO_CPUS];
 cpu_t prev_cpus[MAX_NO_CPUS];
 uint32_t cpu_usage[MAX_NO_CPUS] = {0};
@@ -48,14 +49,8 @@ int main()
                                      {0, watchdog_task, {{0}}, 0},
                                      {0, logger_task, {{0}}, 0}};
 
-  // pthread_t thread_id[NO_THREADS] = {0};
-  // thread_function thread_fun[NO_THREADS] = {
-  //     reader_task, analyzer_task, printer_task, watchdog_task, logger_task};
-  // pthread_attr_t attr[NO_THREADS] = {0};
-  // uint32_t arg[NO_THREADS] = {0};
-
   sem_init(&ssem_analzyer_ready, 0, 1);
-  sem_init(&ssem_reader_ready, 0, 0);
+  sem_init(&ssem_raw_data_posted, 0, 0);
 
   for (uint8_t i = 0; i < NO_THREADS; i++)
     {
@@ -67,23 +62,13 @@ int main()
         }
     }
 
-  // for (uint8_t i = 0; i < NO_THREADS; i++)
-  //   {
-  //     pthread_attr_init(&attr[i]);
-  //     arg[i] = i;
-  //     if (0 != pthread_create(&thread_id[i], NULL, thread_fun[i], &arg[i]))
-  //       {
-  //         perror("Failed to create a thread");
-  //       }
-  //   }
-
   /* Wait for threads to be finished */
   for (uint8_t i = 0; i < NO_THREADS; i++)
     {
       pthread_join(threads[i].id, NULL);
     }
 
-  pthread_mutex_destroy(&mmut_access_raw_data);
+  pthread_mutex_destroy(&mmut_access_ring_buff);
   pthread_mutex_destroy(&mmut_access_cpus_stats);
   pthread_mutex_destroy(&mmut_3);
 
@@ -97,15 +82,25 @@ int main()
 static void *reader_task(void *argument)
 {
   UNUSED(argument);
-
+  uint32_t text_len = 0;
+  char raw_stats[MAX_MSG_LENGHT] = {0};
   while (1)
     {
-      sem_wait(&ssem_analzyer_ready);
-      pthread_mutex_lock(&mmut_access_raw_data);
-      get_raw_data(raw_stats);
-      sem_post(&ssem_reader_ready);
-      pthread_mutex_unlock(&mmut_access_raw_data);
-      sleep(1);
+      text_len = get_raw_data(raw_stats);
+      pthread_mutex_lock(&mmut_access_ring_buff);
+
+      if (rb_is_enough_space(&ringbuffer, text_len))
+        {
+          rb_write_string(&ringbuffer, raw_stats, text_len);
+        }
+      else
+        {
+          /* log data discarded */
+        }
+      sem_post(&ssem_raw_data_posted);
+      pthread_mutex_unlock(&mmut_access_ring_buff);
+      /* 100000 us = 0.1s = 100 jiffies */
+      usleep(500000);
     }
 
   pthread_exit(0);
@@ -115,17 +110,18 @@ static void *reader_task(void *argument)
 static void *analyzer_task(void *argument)
 {
   UNUSED(argument);
+  char raw_stats[MAX_MSG_LENGHT] = {0};
 
   while (1)
     {
-      sem_wait(&ssem_reader_ready);
-      pthread_mutex_lock(&mmut_access_raw_data);
+      sem_wait(&ssem_raw_data_posted);
+      pthread_mutex_lock(&mmut_access_ring_buff);
       pthread_mutex_lock(&mmut_access_cpus_stats);
+      rb_read_string(&ringbuffer, raw_stats);
+      pthread_mutex_unlock(&mmut_access_ring_buff);
       memcpy(prev_cpus, cpus, sizeof(cpu_t) * MAX_NO_CPUS);
       no_cups_used = parse_text_to_struct(raw_stats, cpus);
-      sem_post(&ssem_analzyer_ready);
       pthread_mutex_unlock(&mmut_access_cpus_stats);
-      pthread_mutex_unlock(&mmut_access_raw_data);
     }
 
   pthread_exit(0);
