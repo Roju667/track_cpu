@@ -2,8 +2,8 @@
 CC := gcc
 
 
-CORE_FLAGS := -lpthread -std=c99 -Werror -g -D _DEFAULT_SOURCE
-CORE_FLAGS_GCC := -Wall -Wextra
+CORE_FLAGS :=  -std=c99 -Werror -g -D _DEFAULT_SOURCE
+CORE_FLAGS_GCC := -Wall -Wextra -lpthread
 CORE_FLAGS_CLANG := -Weverything
 
 ifeq ($(CC),gcc)
