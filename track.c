@@ -31,7 +31,8 @@ typedef struct
   pthread_t id;
   thread_function fun;
   pthread_attr_t attr;
-} thread_t;
+  void *arg;
+} my_thread_t;
 
 char raw_stats[MAX_MSG_LENGHT] = {0};
 cpu_t cpus[MAX_NO_CPUS];
@@ -41,29 +42,45 @@ uint32_t no_cups_used = 0;
 
 int main()
 {
-  pthread_t thread_id[NO_THREADS] = {0};
-  thread_function thread_fun[NO_THREADS] = {
-      reader_task, analyzer_task, printer_task, watchdog_task, logger_task};
-  pthread_attr_t attr[NO_THREADS] = {0};
+  my_thread_t threads[NO_THREADS] = {{0, reader_task, {{0}}, 0},
+                                     {0, analyzer_task, {{0}}, 0},
+                                     {0, printer_task, {{0}}, 0},
+                                     {0, watchdog_task, {{0}}, 0},
+                                     {0, logger_task, {{0}}, 0}};
+
+  // pthread_t thread_id[NO_THREADS] = {0};
+  // thread_function thread_fun[NO_THREADS] = {
+  //     reader_task, analyzer_task, printer_task, watchdog_task, logger_task};
+  // pthread_attr_t attr[NO_THREADS] = {0};
+  // uint32_t arg[NO_THREADS] = {0};
 
   sem_init(&ssem_analzyer_ready, 0, 1);
   sem_init(&ssem_reader_ready, 0, 0);
 
-  uint32_t arg[NO_THREADS] = {0};
   for (uint8_t i = 0; i < NO_THREADS; i++)
     {
-      pthread_attr_init(&attr[i]);
-      arg[i] = i;
-      if (0 != pthread_create(&thread_id[i], NULL, thread_fun[i], &arg[i]))
+      pthread_attr_init(&threads[i].attr);
+      if (0 !=
+          pthread_create(&threads[i].id, NULL, threads[i].fun, &threads[i].arg))
         {
           perror("Failed to create a thread");
         }
     }
 
+  // for (uint8_t i = 0; i < NO_THREADS; i++)
+  //   {
+  //     pthread_attr_init(&attr[i]);
+  //     arg[i] = i;
+  //     if (0 != pthread_create(&thread_id[i], NULL, thread_fun[i], &arg[i]))
+  //       {
+  //         perror("Failed to create a thread");
+  //       }
+  //   }
+
   /* Wait for threads to be finished */
   for (uint8_t i = 0; i < NO_THREADS; i++)
     {
-      pthread_join(thread_id[i], NULL);
+      pthread_join(threads[i].id, NULL);
     }
 
   pthread_mutex_destroy(&mmut_access_raw_data);
