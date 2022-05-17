@@ -1,34 +1,35 @@
 # Set you compiler flag (gcc or clang)
-CC := gcc
+COMPILER = ${CC}
 
-
-CORE_FLAGS := -lpthread -std=c99 -Werror -ggdb
-CORE_FLAGS_GCC := -Wall -Wextra
+CORE_FLAGS :=  -std=c99 -Werror -g -D _DEFAULT_SOURCE
+CORE_FLAGS_GCC := -Wall -Wextra -lpthread
 CORE_FLAGS_CLANG := -Weverything
 
-ifeq ($(CC),gcc)
+ifeq ($(COMPILER),gcc)
 	CORE_FLAGS += $(CORE_FLAGS_GCC)
 endif
 
-ifeq ($(CC),clang)
+ifeq ($(COMPILER),clang)
 	CORE_FLAGS += $(CORE_FLAGS_CLANG)
 endif
 
 all:track
 
-track: track.o manage_cpu_data.o
-	$(CC) -o track track.o manage_cpu_data.o $(CORE_FLAGS)
-	@echo "compilation with $(CC), edit CC variable to compile with clang"
+track: track.o manage_cpu_data.o ringbuffer.o
+	$(COMPILER) -o track track.o manage_cpu_data.o ringbuffer.o $(CORE_FLAGS)
 
-track.o: track.c manage_cpu_data.o
-	$(CC) -c track.c $(CORE_FLAGS)
+track.o: track.c manage_cpu_data.h ringbuffer.h track.h
+	$(COMPILER) -c track.c $(CORE_FLAGS)
 
-manage_cpu_data.o: manage_cpu_data.c manage_cpu_data.h
-	$(CC) -c manage_cpu_data.c $(CORE_FLAGS)
+manage_cpu_data.o: manage_cpu_data.c
+	$(COMPILER) -c manage_cpu_data.c $(CORE_FLAGS)
+
+ringbuffer.o: ringbuffer.c
+	$(COMPILER) -c ringbuffer.c $(CORE_FLAGS)
 
 
 clean:
-	rm *.o *.exe *.txt
+	rm *.o *.exe *.gch
 
 val:
-	valgrind --leak-check=full ./track
+	valgrind --leak-check=full --track-origins=yes --log-file="valgrind_log.txt" ./track

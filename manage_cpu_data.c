@@ -7,62 +7,77 @@
 
 #include "manage_cpu_data.h"
 
-void get_raw_data(char *destination)
+#define REQUIRED_ARGS NO_CPU_PARAMS + 1
+
+uint32_t get_raw_data(char *destination)
 {
   FILE *fp = fopen("/proc/stat", "r");
 
-  char c;
   uint32_t len = 0;
 
   if (NULL == fp)
     {
       printf("erorr\n");
       perror("Error opning /proc/stat");
+      return 0;
     }
   else
     {
-      while (EOF != (c = fgetc(fp)) && ++len < MAX_MSG_LENGHT)
+      char c;
+      while (EOF != (c = (char)fgetc(fp)) && ++len < MAX_MSG_LENGHT)
         {
           destination[len] = c;
         }
     }
 
   fclose(fp);
-  return;
+  return len;
 }
 
 static bool is_this_cpu_data(const char *cpu_name)
 {
-  bool ret_val = false;
+  bool is_cpu = false;
 
   if (NULL != cpu_name)
     {
       if (0 == strncmp("cpu", cpu_name, 3))
         {
-          ret_val = true;
+          is_cpu = true;
         }
     }
 
-  return ret_val;
+  return is_cpu;
 }
 
 uint32_t parse_text_to_struct(char *text_from_file, cpu_t *cpus)
 {
 
   uint32_t no_cpus = 0;
+<<<<<<< HEAD
   uint32_t args;
   char *text_line = text_from_file;
 
   if (text_line == NULL)
+=======
+  int32_t args_scanned = 0;
+  char *text_ptr = text_from_file;
+
+  if (text_ptr == NULL)
+>>>>>>> multithread
     {
       return 0;
     }
 
+<<<<<<< HEAD
   text_line++;
+=======
+  text_ptr++;
+>>>>>>> multithread
 
   do
     {
 
+<<<<<<< HEAD
       args = sscanf(text_line, "%s %u %u %u %u %u %u %u %u %u %u",
                     cpus[no_cpus].name, &cpus[no_cpus].usage.user,
                     &cpus[no_cpus].usage.nice, &cpus[no_cpus].usage.system,
@@ -79,6 +94,21 @@ uint32_t parse_text_to_struct(char *text_from_file, cpu_t *cpus)
       //         cpus[no_cpus].usage.iowait, cpus[no_cpus].usage.irq,
       //         cpus[no_cpus].usage.softirq, cpus[no_cpus].usage.steal,
       //         cpus[no_cpus].usage.guest, cpus[no_cpus].usage.guest_nice);
+=======
+      args_scanned = sscanf(
+          text_ptr, "%8s %u %u %u %u %u %u %u %u %u %u", cpus[no_cpus].name,
+          &cpus[no_cpus].usage.user, &cpus[no_cpus].usage.nice,
+          &cpus[no_cpus].usage.system, &cpus[no_cpus].usage.idle,
+          &cpus[no_cpus].usage.iowait, &cpus[no_cpus].usage.irq,
+          &cpus[no_cpus].usage.softirq, &cpus[no_cpus].usage.steal,
+          &cpus[no_cpus].usage.guest, &cpus[no_cpus].usage.guest_nice);
+
+      if ((true == is_this_cpu_data(cpus[no_cpus].name)) &
+          (args_scanned != REQUIRED_ARGS))
+        {
+          /* logger msg - not enough cpu parameters */
+        }
+>>>>>>> multithread
 
       if (false == is_this_cpu_data(cpus[no_cpus].name))
         {
@@ -87,12 +117,21 @@ uint32_t parse_text_to_struct(char *text_from_file, cpu_t *cpus)
 
       if (0 == no_cpus)
         {
+<<<<<<< HEAD
           text_line = strtok(text_line, "\n");
           text_line = strtok(NULL, "\n");
         }
       else
         {
           text_line = strtok(NULL, "\n");
+=======
+          text_ptr = strtok(text_ptr, "\n"); /* ? */
+          text_ptr = strtok(NULL, "\n");
+        }
+      else
+        {
+          text_ptr = strtok(NULL, "\n");
+>>>>>>> multithread
         }
 
       no_cpus++;
@@ -133,4 +172,27 @@ uint32_t calculate_cpu_usage(const cpu_t *cpu, const cpu_t *prev_cpu)
     }
 
   return cpu_precetage;
+}
+
+void prepare_print(cpu_t *cpus, char *raw_stats, char *data_to_print)
+{
+  cpu_t prev_cpus[MAX_NO_CPUS] = {0};
+  uint32_t no_cpus_used = 0;
+  uint32_t cpu_usage[MAX_NO_CPUS] = {0};
+  uint32_t offset = 0;
+
+  memcpy(prev_cpus, cpus, sizeof(cpu_t) * MAX_NO_CPUS);
+  memset(data_to_print, 0, MAX_PRINT_TEXT);
+
+  no_cpus_used = parse_text_to_struct(raw_stats, cpus);
+  for (uint8_t i = 0; i < no_cpus_used; i++)
+    {
+      cpu_usage[i] = calculate_cpu_usage(&cpus[i], &prev_cpus[i]);
+      sprintf(data_to_print + offset, "%s: %d %% \n", cpus[i].name,
+              cpu_usage[i]);
+
+      offset = (uint32_t)strlen(data_to_print);
+    }
+
+  return;
 }
