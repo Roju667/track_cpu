@@ -1,3 +1,4 @@
+
 #include "signal.h"
 #include "unistd.h"
 #include "stdio.h"
@@ -100,7 +101,7 @@ static void *reader_task(void *argument)
 static void *analyzer_task(void *argument)
 {
 
-  cpu_t cpus[MAX_NO_CPUS] = {};
+  cpu_t cpus[MAX_NO_CPUS] = {0};
   char raw_stats[MAX_MSG_LENGHT] = {0};
   UNUSED(argument);
 
@@ -161,7 +162,6 @@ static void *watchdog_task(void *argument)
             }
           cancel_threads();
           pthread_exit(0);
-          break;
         }
       sleep(WATCHDOG_TIME);
     }
