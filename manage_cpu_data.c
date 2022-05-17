@@ -53,48 +53,19 @@ uint32_t parse_text_to_struct(char *text_from_file, cpu_t *cpus)
 {
 
   uint32_t no_cpus = 0;
-<<<<<<< HEAD
-  uint32_t args;
-  char *text_line = text_from_file;
-
-  if (text_line == NULL)
-=======
   int32_t args_scanned = 0;
   char *text_ptr = text_from_file;
 
   if (text_ptr == NULL)
->>>>>>> multithread
     {
       return 0;
     }
 
-<<<<<<< HEAD
-  text_line++;
-=======
   text_ptr++;
->>>>>>> multithread
 
   do
     {
 
-<<<<<<< HEAD
-      args = sscanf(text_line, "%s %u %u %u %u %u %u %u %u %u %u",
-                    cpus[no_cpus].name, &cpus[no_cpus].usage.user,
-                    &cpus[no_cpus].usage.nice, &cpus[no_cpus].usage.system,
-                    &cpus[no_cpus].usage.idle, &cpus[no_cpus].usage.iowait,
-                    &cpus[no_cpus].usage.irq, &cpus[no_cpus].usage.softirq,
-                    &cpus[no_cpus].usage.steal, &cpus[no_cpus].usage.guest,
-                    &cpus[no_cpus].usage.guest_nice);
-      (void)args;
-      // fprintf(stderr, "args written %d\n", args);
-      // fprintf(stderr, "%s %u %u %u %u %u %u %u %u %u %u \n",
-      // cpus[no_cpus].name,
-      //         cpus[no_cpus].usage.user, cpus[no_cpus].usage.nice,
-      //         cpus[no_cpus].usage.system, cpus[no_cpus].usage.idle,
-      //         cpus[no_cpus].usage.iowait, cpus[no_cpus].usage.irq,
-      //         cpus[no_cpus].usage.softirq, cpus[no_cpus].usage.steal,
-      //         cpus[no_cpus].usage.guest, cpus[no_cpus].usage.guest_nice);
-=======
       args_scanned = sscanf(
           text_ptr, "%8s %u %u %u %u %u %u %u %u %u %u", cpus[no_cpus].name,
           &cpus[no_cpus].usage.user, &cpus[no_cpus].usage.nice,
@@ -108,7 +79,6 @@ uint32_t parse_text_to_struct(char *text_from_file, cpu_t *cpus)
         {
           /* logger msg - not enough cpu parameters */
         }
->>>>>>> multithread
 
       if (false == is_this_cpu_data(cpus[no_cpus].name))
         {
@@ -117,21 +87,12 @@ uint32_t parse_text_to_struct(char *text_from_file, cpu_t *cpus)
 
       if (0 == no_cpus)
         {
-<<<<<<< HEAD
-          text_line = strtok(text_line, "\n");
-          text_line = strtok(NULL, "\n");
-        }
-      else
-        {
-          text_line = strtok(NULL, "\n");
-=======
           text_ptr = strtok(text_ptr, "\n"); /* ? */
           text_ptr = strtok(NULL, "\n");
         }
       else
         {
           text_ptr = strtok(NULL, "\n");
->>>>>>> multithread
         }
 
       no_cpus++;
