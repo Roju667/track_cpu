@@ -20,7 +20,7 @@ track: track.o manage_cpu_data.o ringbuffer.o
 	$(CC) -o track track.o manage_cpu_data.o ringbuffer.o $(CORE_FLAGS)
 	@echo "compilation with $(CC), edit CC variable to compile with clang"
 
-track.o: track.c manage_cpu_data.h ringbuffer.h
+track.o: track.c manage_cpu_data.h ringbuffer.h track.h
 	$(CC) -c track.c $(CORE_FLAGS)
 
 manage_cpu_data.o: manage_cpu_data.c

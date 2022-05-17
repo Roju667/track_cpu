@@ -9,22 +9,7 @@
 
 #include "manage_cpu_data.h"
 #include "ringbuffer.h"
-
-#define UNUSED(x) (void)(x)
-#define NO_THREADS 5U
-#define MAX_LOG_TEXT 32U
-#define WATCHDOG_TIME 2U
-#define PRINTER_TIME 1U
-
-typedef void *(*thread_function)(void *);
-
-typedef struct
-{
-  pthread_t id;
-  thread_function fun;
-  pthread_attr_t attr;
-  void *arg;
-} my_thread_t;
+#include "track.h"
 
 static void *reader_task(void *argument);
 static void *analyzer_task(void *argument);
@@ -35,65 +20,40 @@ static void *logger_task(void *argument);
 static void write_new_log_msg(const char *new_log);
 static void post_watchdog_sem(sem_t *sem);
 static void trywait_watchdog_sem(sem_t *sem);
+static void init_all_semaphores(void);
+static void start_threads(void);
+static void wait_threads_finished(void);
+static void destroy_mutexes_semaphores(void);
+static void cancel_threads(void);
 
-static pthread_mutex_t mmut_access_ring_buff = PTHREAD_MUTEX_INITIALIZER;
-static pthread_mutex_t mmut_access_print_msg = PTHREAD_MUTEX_INITIALIZER;
-static pthread_mutex_t mmut_access_log_msg = PTHREAD_MUTEX_INITIALIZER;
+static my_thread_t threads[NO_THREADS] = {{0, logger_task, {{0}}, 0},
+                                          {0, reader_task, {{0}}, 0},
+                                          {0, analyzer_task, {{0}}, 0},
+                                          {0, printer_task, {{0}}, 0},
+                                          {0, watchdog_task, {{0}}, 0}};
 
-static sem_t ssem_log_data = {0};
-static sem_t ssem_raw_data_posted = {0};
-static sem_t ssem_wd_reader = {0};
-static sem_t ssem_wd_analyzer = {0};
-static sem_t ssem_wd_printer = {0};
+static pthread_mutex_t muts[NUMBER_OF_MUTS] = {PTHREAD_MUTEX_INITIALIZER};
+static sem_t sems[NUMBER_OF_SEMS];
+static my_semaphore_t my_sems[NUMBER_OF_SEMS] = {
+    {&sems[SEM_LOG_DATA], 0, 0},
+    {&sems[SEM_RAW_DATA_POSTED], 0, 0},
+    {&sems[SEM_WD_READER], 0, 1},
+    {&sems[SEM_WD_ANALYZER], 0, 1},
+    {&sems[SEM_WD_PRITNER], 0, 1}};
 
 /* Shared data */
-static ringbuffer_t ringbuffer = {0};
-static char log_msg[MAX_LOG_TEXT] = {0};
-static char print_msg[MAX_PRINT_TEXT] = {0};
+static ringbuffer_t ringbuffer;
+static char log_msg[MAX_LOG_TEXT];
+static char print_msg[MAX_PRINT_TEXT];
 static volatile uint8_t watchdog_timeout = 0;
 
 int main()
 {
 
-  my_thread_t threads[NO_THREADS] = {{0, logger_task, {{0}}, 0},
-                                     {0, reader_task, {{0}}, 0},
-                                     {0, analyzer_task, {{0}}, 0},
-                                     {0, printer_task, {{0}}, 0},
-                                     {0, watchdog_task, {{0}}, 0}};
-
-  sem_init(&ssem_log_data, 0, 0);
-  sem_init(&ssem_raw_data_posted, 0, 0);
-  sem_init(&ssem_wd_reader, 0, 1);
-  sem_init(&ssem_wd_analyzer, 0, 1);
-  sem_init(&ssem_wd_printer, 0, 1);
-
-  for (uint8_t i = 0; i < NO_THREADS; i++)
-    {
-      pthread_attr_init(&threads[i].attr);
-      if (0 !=
-          pthread_create(&threads[i].id, NULL, threads[i].fun, &threads[i].arg))
-        {
-          write_new_log_msg("Failed to create a thread");
-        }
-      else
-        {
-          write_new_log_msg("Task created\n");
-        }
-    }
-
-  /* Wait for threads to be finished */
-  for (uint8_t i = 0; i < NO_THREADS; i++)
-    {
-      pthread_join(threads[i].id, NULL);
-    }
-
-  pthread_mutex_destroy(&mmut_access_ring_buff);
-  pthread_mutex_destroy(&mmut_access_print_msg);
-  pthread_mutex_destroy(&mmut_access_log_msg);
-
-  while (1)
-    {
-    }
+  init_all_semaphores();
+  start_threads();
+  wait_threads_finished();
+  destroy_mutexes_semaphores();
 
   return 0;
 }
@@ -110,26 +70,27 @@ static void *reader_task(void *argument)
     {
       text_len = get_raw_data(raw_stats);
 
-      pthread_mutex_lock(&mmut_access_ring_buff);
+      pthread_mutex_lock(&muts[MUT_RING_BUFF]);
       if (rb_is_enough_space(&ringbuffer, text_len))
         {
           rb_write_string(&ringbuffer, raw_stats, text_len);
         }
       else
         {
-          write_new_log_msg("Data discarded\n");
+          write_new_log_msg("Warning : Ring buffer full\n");
         }
-      sem_post(&ssem_raw_data_posted);
-      pthread_mutex_unlock(&mmut_access_ring_buff);
+      sem_post(my_sems[SEM_RAW_DATA_POSTED].sem);
+      pthread_mutex_unlock(&muts[MUT_RING_BUFF]);
 
-      post_watchdog_sem(&ssem_wd_reader);
-      /* 100000 us = 0.1s = 100 jiffies */
-      usleep(500000);
+      post_watchdog_sem(my_sems[SEM_WD_READER].sem);
 
       if (watchdog_timeout)
         {
           break;
         }
+
+      /* 100000 us = 0.1s = 100 jiffies */
+      usleep(500000);
     }
 
   pthread_exit(0);
@@ -146,17 +107,17 @@ static void *analyzer_task(void *argument)
 
   while (1)
     {
-      sem_wait(&ssem_raw_data_posted);
+      sem_wait(my_sems[SEM_RAW_DATA_POSTED].sem);
 
-      pthread_mutex_lock(&mmut_access_ring_buff);
+      pthread_mutex_lock(&muts[MUT_RING_BUFF]);
       rb_read_string(&ringbuffer, raw_stats);
-      pthread_mutex_unlock(&mmut_access_ring_buff);
+      pthread_mutex_unlock(&muts[MUT_RING_BUFF]);
 
-      pthread_mutex_lock(&mmut_access_print_msg);
+      pthread_mutex_lock(&muts[MUT_PRINT]);
       prepare_print(cpus, raw_stats, print_msg);
-      pthread_mutex_unlock(&mmut_access_print_msg);
+      pthread_mutex_unlock(&muts[MUT_PRINT]);
 
-      post_watchdog_sem(&ssem_wd_analyzer);
+      post_watchdog_sem(my_sems[SEM_WD_ANALYZER].sem);
 
       if (watchdog_timeout)
         {
@@ -175,18 +136,19 @@ static void *printer_task(void *argument)
 
   while (1)
     {
-      pthread_mutex_lock(&mmut_access_print_msg);
+      pthread_mutex_lock(&muts[MUT_PRINT]);
       system("clear");
       fprintf(stderr, "%s", print_msg);
-      pthread_mutex_unlock(&mmut_access_print_msg);
-      post_watchdog_sem(&ssem_wd_printer);
+      pthread_mutex_unlock(&muts[MUT_PRINT]);
 
-      sleep(PRINTER_TIME);
+      post_watchdog_sem(my_sems[SEM_WD_PRITNER].sem);
 
       if (watchdog_timeout)
         {
           break;
         }
+
+      sleep(PRINTER_TIME);
     }
 
   pthread_exit(0);
@@ -197,19 +159,19 @@ static void *printer_task(void *argument)
 static void *watchdog_task(void *argument)
 {
   UNUSED(argument);
-
   while (1)
     {
-      trywait_watchdog_sem(&ssem_wd_reader);
-      trywait_watchdog_sem(&ssem_wd_analyzer);
-      trywait_watchdog_sem(&ssem_wd_printer);
-      sleep(WATCHDOG_TIME);
+      trywait_watchdog_sem(my_sems[SEM_WD_READER].sem);
+      trywait_watchdog_sem(my_sems[SEM_WD_ANALYZER].sem);
+      trywait_watchdog_sem(my_sems[SEM_WD_PRITNER].sem);
       if (watchdog_timeout)
         {
+          cancel_threads();
+          pthread_exit(0);
           break;
         }
+      sleep(WATCHDOG_TIME);
     }
-  pthread_exit(0);
   return NULL;
 }
 
@@ -224,13 +186,13 @@ static void *logger_task(void *argument)
 
   while (1)
     {
-      sem_wait(&ssem_log_data);
+      sem_wait(my_sems[SEM_LOG_DATA].sem);
 
-      pthread_mutex_lock(&mmut_access_log_msg);
+      pthread_mutex_lock(&muts[MUT_LOG_DATA]);
       log_file = fopen("log_data.txt", "a");
       fputs(log_msg, log_file);
       fclose(log_file);
-      pthread_mutex_unlock(&mmut_access_log_msg);
+      pthread_mutex_unlock(&muts[MUT_LOG_DATA]);
 
       if (watchdog_timeout)
         {
@@ -244,19 +206,19 @@ static void *logger_task(void *argument)
 
 static void write_new_log_msg(const char *new_log)
 {
-  pthread_mutex_lock(&mmut_access_log_msg);
+  pthread_mutex_lock(&muts[MUT_LOG_DATA]);
 
   if (strlen(new_log) > MAX_LOG_TEXT)
     {
-      strcpy(log_msg, "Used msg to long - max 32\n");
+      strcpy(log_msg, "Error: Used log too long \n");
     }
   else
     {
       strcpy(log_msg, new_log);
     }
 
-  sem_post(&ssem_log_data);
-  pthread_mutex_unlock(&mmut_access_log_msg);
+  sem_post(my_sems[SEM_LOG_DATA].sem);
+  pthread_mutex_unlock(&muts[MUT_LOG_DATA]);
 
   return;
 }
@@ -265,10 +227,9 @@ static void write_new_log_msg(const char *new_log)
 static void post_watchdog_sem(sem_t *sem)
 {
   int32_t sem_value = 0;
-  char msg[64] = {0};
   if (0 != sem_getvalue(sem, &sem_value))
     {
-      write_new_log_msg("Couldnt get semaphore value \n");
+      write_new_log_msg("Error: Get semaphore val \n");
     }
 
   if (0 == sem_value)
@@ -276,18 +237,97 @@ static void post_watchdog_sem(sem_t *sem)
       sem_post(sem);
     }
 
-  sprintf(msg, "semaphore value : %d \n", sem_value);
-  write_new_log_msg(msg);
-
   return;
 }
 
 static void trywait_watchdog_sem(sem_t *sem)
 {
+
   if (-1 == sem_trywait(sem))
     {
-      write_new_log_msg("Watchdog timeout \n");
+      write_new_log_msg("Error: Watchdog timeout \n");
       watchdog_timeout = 1;
+    }
+
+  return;
+}
+
+static void init_all_semaphores(void)
+{
+
+  for (uint8_t i = 0; i < NUMBER_OF_SEMS; i++)
+    {
+      if (0 != sem_init(my_sems[i].sem, my_sems[i].pshared, my_sems[i].value))
+        {
+          write_new_log_msg("Error: Semaphore Init\n");
+        }
+    }
+
+  return;
+}
+
+static void start_threads(void)
+{
+  for (uint8_t i = 0; i < NO_THREADS; i++)
+    {
+      pthread_attr_init(&threads[i].attr);
+      if (0 !=
+          pthread_create(&threads[i].id, NULL, threads[i].fun, &threads[i].arg))
+        {
+          write_new_log_msg("Error: Create task\n");
+        }
+      else
+        {
+          write_new_log_msg("Info: Task created\n");
+        }
+    }
+
+  return;
+}
+
+static void wait_threads_finished(void)
+{
+  for (uint8_t i = 0; i < NO_THREADS; i++)
+    {
+      if (0 != pthread_join(threads[i].id, NULL))
+        {
+          write_new_log_msg("Error: Join thread\n");
+        }
+    }
+
+  return;
+}
+
+static void destroy_mutexes_semaphores(void)
+{
+
+  for (uint32_t i = 0; i < NUMBER_OF_MUTS; i++)
+    {
+      if (0 != pthread_mutex_destroy(&muts[i]))
+        {
+          write_new_log_msg("Error: Destroy Mutex\n");
+        }
+    }
+
+  for (uint8_t i = 0; i < NUMBER_OF_SEMS; i++)
+    {
+      if (0 != sem_destroy(my_sems[i].sem))
+        {
+          write_new_log_msg("Error: Destroy Semaphore\n");
+        }
+    }
+
+  return;
+}
+
+static void cancel_threads(void)
+{
+  for (uint8_t i = 0; i < NO_THREADS; i++)
+    {
+      if (0 != pthread_cancel(threads[i].id))
+        {
+          write_new_log_msg("Error: Cancel Thread\n");
+        }
     }
 
   return;

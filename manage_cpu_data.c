@@ -13,16 +13,17 @@ uint32_t get_raw_data(char *destination)
 {
   FILE *fp = fopen("/proc/stat", "r");
 
-  char c;
   uint32_t len = 0;
 
   if (NULL == fp)
     {
       printf("erorr\n");
       perror("Error opning /proc/stat");
+      return 0;
     }
   else
     {
+      char c;
       while (EOF != (c = fgetc(fp)) && ++len < MAX_MSG_LENGHT)
         {
           destination[len] = c;
@@ -67,7 +68,7 @@ uint32_t parse_text_to_struct(char *text_from_file, cpu_t *cpus)
     {
 
       args_scanned = sscanf(
-          text_ptr, "%s %u %u %u %u %u %u %u %u %u %u", cpus[no_cpus].name,
+          text_ptr, "%8s %u %u %u %u %u %u %u %u %u %u", cpus[no_cpus].name,
           &cpus[no_cpus].usage.user, &cpus[no_cpus].usage.nice,
           &cpus[no_cpus].usage.system, &cpus[no_cpus].usage.idle,
           &cpus[no_cpus].usage.iowait, &cpus[no_cpus].usage.irq,
@@ -79,14 +80,6 @@ uint32_t parse_text_to_struct(char *text_from_file, cpu_t *cpus)
         {
           /* logger msg - not enough cpu parameters */
         }
-      // fprintf(stderr, "args written %d\n", args);
-      // fprintf(stderr, "%s %u %u %u %u %u %u %u %u %u %u \n",
-      // cpus[no_cpus].name,
-      //         cpus[no_cpus].usage.user, cpus[no_cpus].usage.nice,
-      //         cpus[no_cpus].usage.system, cpus[no_cpus].usage.idle,
-      //         cpus[no_cpus].usage.iowait, cpus[no_cpus].usage.irq,
-      //         cpus[no_cpus].usage.softirq, cpus[no_cpus].usage.steal,
-      //         cpus[no_cpus].usage.guest, cpus[no_cpus].usage.guest_nice);
 
       if (false == is_this_cpu_data(cpus[no_cpus].name))
         {
@@ -145,7 +138,7 @@ uint32_t calculate_cpu_usage(const cpu_t *cpu, const cpu_t *prev_cpu)
 
 void prepare_print(cpu_t *cpus, char *raw_stats, char *data_to_print)
 {
-  cpu_t prev_cpus[MAX_NO_CPUS] = {0};
+  cpu_t prev_cpus[MAX_NO_CPUS];
   uint32_t no_cpus_used = 0;
   uint32_t cpu_usage[MAX_NO_CPUS] = {0};
   uint32_t lenght = 0;

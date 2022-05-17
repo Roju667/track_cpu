@@ -58,10 +58,9 @@ bool rb_is_enough_space(const ringbuffer_t *buffer, uint32_t msg_lenght)
 
 rb_status rb_write_string(ringbuffer_t *buffer, const char *msg, uint32_t len)
 {
-  uint32_t i = len;
   rb_status ret_status = RB_ERROR;
 
-  for (i = 0; i < len; i++)
+  for (uint32_t i = 0; i < len; i++)
     {
       ret_status = rb_write(buffer, msg[i]);
     }

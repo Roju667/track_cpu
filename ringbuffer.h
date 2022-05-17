@@ -1,6 +1,8 @@
 #ifndef INC_RINGBUFFER_H_
 #define INC_RINGBUFFER_H_
 
+#include "stdint.h"
+
 #define RING_BUFFER_SIZE 4096
 #define MSG_DONE_CHAR 4
 
