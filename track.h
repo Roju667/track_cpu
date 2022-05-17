@@ -10,7 +10,7 @@
 #define NO_MUTEXES 3U
 #define MAX_LOG_TEXT 32U
 #define WATCHDOG_TIME 2U
-#define PRINTER_TIME 1U
+#define PRINTER_TIME 3U
 
 typedef void *(*thread_function)(void *);
 

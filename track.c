@@ -1,9 +1,11 @@
+#include "signal.h"
 #include "unistd.h"
 #include "stdio.h"
 #include "stdlib.h"
 #include "stdint.h"
 #include "stdbool.h"
 #include "string.h"
+
 #include "pthread.h"
 #include "semaphore.h"
 
@@ -25,6 +27,7 @@ static void start_threads(void);
 static void wait_threads_finished(void);
 static void destroy_mutexes_semaphores(void);
 static void cancel_threads(void);
+static void init_sigterm_exit(void);
 
 static my_thread_t threads[NO_THREADS] = {{0, logger_task, {{0}}, 0},
                                           {0, reader_task, {{0}}, 0},
@@ -46,10 +49,12 @@ static ringbuffer_t ringbuffer;
 static char log_msg[MAX_LOG_TEXT];
 static char print_msg[MAX_PRINT_TEXT];
 static volatile uint8_t watchdog_timeout = 0;
+static volatile sig_atomic_t kill_process = 0;
 
 int main()
 {
 
+  init_sigterm_exit();
   init_all_semaphores();
   start_threads();
   wait_threads_finished();
@@ -66,7 +71,7 @@ static void *reader_task(void *argument)
   char raw_stats[MAX_MSG_LENGHT] = {0};
   UNUSED(argument);
 
-  while (1)
+  while (!kill_process && !watchdog_timeout)
     {
       text_len = get_raw_data(raw_stats);
 
@@ -83,12 +88,6 @@ static void *reader_task(void *argument)
       pthread_mutex_unlock(&muts[MUT_RING_BUFF]);
 
       post_watchdog_sem(my_sems[SEM_WD_READER].sem);
-
-      if (watchdog_timeout)
-        {
-          break;
-        }
-
       /* 100000 us = 0.1s = 100 jiffies */
       usleep(500000);
     }
@@ -101,11 +100,11 @@ static void *reader_task(void *argument)
 static void *analyzer_task(void *argument)
 {
 
-  cpu_t cpus[MAX_NO_CPUS];
+  cpu_t cpus[MAX_NO_CPUS] = {};
   char raw_stats[MAX_MSG_LENGHT] = {0};
   UNUSED(argument);
 
-  while (1)
+  while (!kill_process && !watchdog_timeout)
     {
       sem_wait(my_sems[SEM_RAW_DATA_POSTED].sem);
 
@@ -118,11 +117,6 @@ static void *analyzer_task(void *argument)
       pthread_mutex_unlock(&muts[MUT_PRINT]);
 
       post_watchdog_sem(my_sems[SEM_WD_ANALYZER].sem);
-
-      if (watchdog_timeout)
-        {
-          break;
-        }
     }
 
   pthread_exit(0);
@@ -134,7 +128,7 @@ static void *printer_task(void *argument)
 {
   UNUSED(argument);
 
-  while (1)
+  while (!kill_process && !watchdog_timeout)
     {
       pthread_mutex_lock(&muts[MUT_PRINT]);
       system("clear");
@@ -142,11 +136,6 @@ static void *printer_task(void *argument)
       pthread_mutex_unlock(&muts[MUT_PRINT]);
 
       post_watchdog_sem(my_sems[SEM_WD_PRITNER].sem);
-
-      if (watchdog_timeout)
-        {
-          break;
-        }
 
       sleep(PRINTER_TIME);
     }
@@ -164,8 +153,12 @@ static void *watchdog_task(void *argument)
       trywait_watchdog_sem(my_sems[SEM_WD_READER].sem);
       trywait_watchdog_sem(my_sems[SEM_WD_ANALYZER].sem);
       trywait_watchdog_sem(my_sems[SEM_WD_PRITNER].sem);
-      if (watchdog_timeout)
+      if (watchdog_timeout || kill_process)
         {
+          if (kill_process == 1)
+            {
+              perror("\nExit with SIGTERM \n");
+            }
           cancel_threads();
           pthread_exit(0);
           break;
@@ -184,7 +177,7 @@ static void *logger_task(void *argument)
 
   UNUSED(argument);
 
-  while (1)
+  while (!kill_process && !watchdog_timeout)
     {
       sem_wait(my_sems[SEM_LOG_DATA].sem);
 
@@ -193,11 +186,6 @@ static void *logger_task(void *argument)
       fputs(log_msg, log_file);
       fclose(log_file);
       pthread_mutex_unlock(&muts[MUT_LOG_DATA]);
-
-      if (watchdog_timeout)
-        {
-          break;
-        }
     }
 
   pthread_exit(0);
@@ -329,6 +317,23 @@ static void cancel_threads(void)
           write_new_log_msg("Error: Cancel Thread\n");
         }
     }
+
+  return;
+}
+
+static void terminate_process(int signum)
+{
+
+  UNUSED(signum);
+  kill_process = 1;
+}
+
+static void init_sigterm_exit(void)
+{
+  struct sigaction action;
+  memset(&action, 0, sizeof(struct sigaction));
+  action.sa_handler = terminate_process;
+  sigaction(SIGTERM, &action, NULL);
 
   return;
 }

@@ -58,7 +58,6 @@ uint32_t parse_text_to_struct(char *text_from_file, cpu_t *cpus)
 
   if (text_ptr == NULL)
     {
-      /* logger msg - NULL pointer passed to parsing */
       return 0;
     }
 
@@ -138,7 +137,7 @@ uint32_t calculate_cpu_usage(const cpu_t *cpu, const cpu_t *prev_cpu)
 
 void prepare_print(cpu_t *cpus, char *raw_stats, char *data_to_print)
 {
-  cpu_t prev_cpus[MAX_NO_CPUS];
+  cpu_t prev_cpus[MAX_NO_CPUS] = {};
   uint32_t no_cpus_used = 0;
   uint32_t cpu_usage[MAX_NO_CPUS] = {0};
   uint32_t lenght = 0;
@@ -152,6 +151,7 @@ void prepare_print(cpu_t *cpus, char *raw_stats, char *data_to_print)
       cpu_usage[i] = calculate_cpu_usage(&cpus[i], &prev_cpus[i]);
       sprintf(data_to_print + lenght, "%s: %d %% \n", cpus[i].name,
               cpu_usage[i]);
+
       lenght = strlen(data_to_print);
     }
 

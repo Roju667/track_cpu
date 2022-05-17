@@ -2,7 +2,7 @@
 CC := gcc
 
 
-CORE_FLAGS :=  -std=c99 -Werror -g -D _DEFAULT_SOURCE
+CORE_FLAGS :=  -std=c99 -Werror -g -D _DEFAULT_SOURCE -D _POSIX_SOURCE
 CORE_FLAGS_GCC := -Wall -Wextra -lpthread
 CORE_FLAGS_CLANG := -Weverything
 
@@ -31,7 +31,7 @@ ringbuffer.o: ringbuffer.c
 
 
 clean:
-	rm *.o *.exe *.txt *.gch
+	rm *.o *.exe *.gch
 
 val:
-	valgrind --leak-check=full ./track
+	valgrind --leak-check=full --track-origins=yes --log-file="valgrind_log.txt" ./track
