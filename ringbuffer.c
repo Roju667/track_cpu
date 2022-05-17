@@ -5,7 +5,7 @@
 #include "unistd.h"
 #include "stdlib.h"
 
-rb_status rb_read(ringbuffer_t *buffer, uint8_t *value)
+rb_status rb_read(ringbuffer_t *buffer, char *value)
 {
   if (buffer->head == buffer->tail)
     {
@@ -19,7 +19,7 @@ rb_status rb_read(ringbuffer_t *buffer, uint8_t *value)
   return RB_OK;
 }
 
-rb_status rb_write(ringbuffer_t *buffer, uint8_t value)
+rb_status rb_write(ringbuffer_t *buffer, char value)
 {
 
   uint16_t HeadTmp;
@@ -77,7 +77,7 @@ rb_status rb_read_string(ringbuffer_t *buffer, char *destination)
 
   while (1)
     {
-      status = rb_read(buffer, (uint8_t *)&destination[i]);
+      status = rb_read(buffer, &destination[i]);
 
       if (MSG_DONE_CHAR == destination[i] || RB_ERROR == status)
         {

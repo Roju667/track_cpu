@@ -36,7 +36,7 @@ static my_thread_t threads[NO_THREADS] = {{0, logger_task, {{0}}, 0},
                                           {0, printer_task, {{0}}, 0},
                                           {0, watchdog_task, {{0}}, 0}};
 
-static pthread_mutex_t muts[NUMBER_OF_MUTS] = {PTHREAD_MUTEX_INITIALIZER};
+static pthread_mutex_t my_muts[NUMBER_OF_MUTS] = {PTHREAD_MUTEX_INITIALIZER};
 static sem_t sems[NUMBER_OF_SEMS];
 static my_semaphore_t my_sems[NUMBER_OF_SEMS] = {
     {&sems[SEM_LOG_DATA], 0, 0},
@@ -76,7 +76,7 @@ static void *reader_task(void *argument)
     {
       text_len = get_raw_data(raw_stats);
 
-      pthread_mutex_lock(&muts[MUT_RING_BUFF]);
+      pthread_mutex_lock(&my_muts[MUT_RING_BUFF]);
       if (rb_is_enough_space(&ringbuffer, text_len))
         {
           rb_write_string(&ringbuffer, raw_stats, text_len);
@@ -86,7 +86,7 @@ static void *reader_task(void *argument)
           write_new_log_msg("Warning : Ring buffer full\n");
         }
       sem_post(my_sems[SEM_RAW_DATA_POSTED].sem);
-      pthread_mutex_unlock(&muts[MUT_RING_BUFF]);
+      pthread_mutex_unlock(&my_muts[MUT_RING_BUFF]);
 
       post_watchdog_sem(my_sems[SEM_WD_READER].sem);
       /* 100000 us = 0.1s = 100 jiffies */
@@ -109,13 +109,13 @@ static void *analyzer_task(void *argument)
     {
       sem_wait(my_sems[SEM_RAW_DATA_POSTED].sem);
 
-      pthread_mutex_lock(&muts[MUT_RING_BUFF]);
+      pthread_mutex_lock(&my_muts[MUT_RING_BUFF]);
       rb_read_string(&ringbuffer, raw_stats);
-      pthread_mutex_unlock(&muts[MUT_RING_BUFF]);
+      pthread_mutex_unlock(&my_muts[MUT_RING_BUFF]);
 
-      pthread_mutex_lock(&muts[MUT_PRINT]);
+      pthread_mutex_lock(&my_muts[MUT_PRINT]);
       prepare_print(cpus, raw_stats, print_msg);
-      pthread_mutex_unlock(&muts[MUT_PRINT]);
+      pthread_mutex_unlock(&my_muts[MUT_PRINT]);
 
       post_watchdog_sem(my_sems[SEM_WD_ANALYZER].sem);
     }
@@ -131,10 +131,10 @@ static void *printer_task(void *argument)
 
   while (!kill_process && !watchdog_timeout)
     {
-      pthread_mutex_lock(&muts[MUT_PRINT]);
+      pthread_mutex_lock(&my_muts[MUT_PRINT]);
       system("clear");
       fprintf(stderr, "%s", print_msg);
-      pthread_mutex_unlock(&muts[MUT_PRINT]);
+      pthread_mutex_unlock(&my_muts[MUT_PRINT]);
 
       post_watchdog_sem(my_sems[SEM_WD_PRITNER].sem);
 
@@ -151,6 +151,7 @@ static void *watchdog_task(void *argument)
   UNUSED(argument);
   while (1)
     {
+
       trywait_watchdog_sem(my_sems[SEM_WD_READER].sem);
       trywait_watchdog_sem(my_sems[SEM_WD_ANALYZER].sem);
       trywait_watchdog_sem(my_sems[SEM_WD_PRITNER].sem);
@@ -181,11 +182,11 @@ static void *logger_task(void *argument)
     {
       sem_wait(my_sems[SEM_LOG_DATA].sem);
 
-      pthread_mutex_lock(&muts[MUT_LOG_DATA]);
+      pthread_mutex_lock(&my_muts[MUT_LOG_DATA]);
       log_file = fopen("log_data.txt", "a");
       fputs(log_msg, log_file);
       fclose(log_file);
-      pthread_mutex_unlock(&muts[MUT_LOG_DATA]);
+      pthread_mutex_unlock(&my_muts[MUT_LOG_DATA]);
     }
 
   pthread_exit(0);
@@ -194,7 +195,7 @@ static void *logger_task(void *argument)
 
 static void write_new_log_msg(const char *new_log)
 {
-  pthread_mutex_lock(&muts[MUT_LOG_DATA]);
+  pthread_mutex_lock(&my_muts[MUT_LOG_DATA]);
 
   if (strlen(new_log) > MAX_LOG_TEXT)
     {
@@ -206,7 +207,7 @@ static void write_new_log_msg(const char *new_log)
     }
 
   sem_post(my_sems[SEM_LOG_DATA].sem);
-  pthread_mutex_unlock(&muts[MUT_LOG_DATA]);
+  pthread_mutex_unlock(&my_muts[MUT_LOG_DATA]);
 
   return;
 }
@@ -291,7 +292,7 @@ static void destroy_mutexes_semaphores(void)
 
   for (uint32_t i = 0; i < NUMBER_OF_MUTS; i++)
     {
-      if (0 != pthread_mutex_destroy(&muts[i]))
+      if (0 != pthread_mutex_destroy(&my_muts[i]))
         {
           write_new_log_msg("Error: Destroy Mutex\n");
         }
@@ -332,6 +333,8 @@ static void init_sigterm_exit(void)
 {
   struct sigaction action;
   memset(&action, 0, sizeof(struct sigaction));
+
+#pragma clang diagnostic ignored "-Wdisabled-macro-expansion"
   action.sa_handler = terminate_process;
   sigaction(SIGTERM, &action, NULL);
 
