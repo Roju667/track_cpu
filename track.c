@@ -335,7 +335,7 @@ static void init_sigterm_exit(void)
   struct sigaction action;
   memset(&action, 0, sizeof(struct sigaction));
 
-#pragma clang diagnostic ignored "-Wdisabled-macro-expansion"
+  // #pragma clang diagnostic ignored "-Wdisabled-macro-expansion"
   action.sa_handler = terminate_process;
   sigaction(SIGTERM, &action, NULL);
 

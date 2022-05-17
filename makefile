@@ -3,7 +3,7 @@ COMPILER = ${CC}
 
 CORE_FLAGS :=  -std=c99 -Werror -g -D _DEFAULT_SOURCE
 CORE_FLAGS_GCC := -Wall -Wextra -lpthread
-CORE_FLAGS_CLANG := -Weverything
+CORE_FLAGS_CLANG := -Weverything -Wno-disabled-macro-expansion
 
 ifeq ($(COMPILER),gcc)
 	CORE_FLAGS += $(CORE_FLAGS_GCC)
